@@ -1,6 +1,8 @@
 import 'dart:convert';
+import '../models/game_main_page.dart';
+import 'body_query.dart';
 
-import '../data//client_credentials.dart' as client_data;
+import '../data/client_credentials.dart' as client_data;
 import 'package:http/http.dart' as http;
 
 class GameApi {
@@ -30,58 +32,51 @@ class GameApi {
     _accessToken = "2dr9rde2ezx5d38r6vd6s84rdebvb5";
   }
 
-  //get 10 games by a query
-  Future<dynamic> getGames(BodyQuery bodyQuery) async {
+  //get json encoded response from given endpoint and given body
+  Future<List<dynamic>> getResponse(String endpoint, BodyQuery bodyQuery) async {
     var response = await http.post(
       Uri.https(
         'api.igdb.com', 
-        'v4/games',
+        'v4/$endpoint',
       ),
       headers: {
         "Client-ID": client_data.id,
-        "Authorization": "Bearer 2dr9rde2ezx5d38r6vd6s84rdebvb5"
+        "Authorization": "Bearer $_accessToken"
       },
       body: bodyQuery.toString()
     );
     return jsonDecode(response.body);
   }
-}
 
-class BodyQuery {
-  //fields *; sort rating desc; where rating != null & rating_count > 100;
-  List<String>? _fields;
-  List<String>? _where;
-  List<String>? _sort;
+  //main page game query
+  Future<List<GameMainPage>> getGamesMainPage({int offset = 0}) async {
 
-  BodyQuery({List<String>? fields, List<String>? where, List<String>? sort}){
-    _fields = fields;
-    _where = where;
-    _sort = sort;
-  }
+    //get first 10 games with biggest rating and rated by more than 100 users
+    var jsonGames = await GameApi().getResponse("games",
+      BodyQuery(
+        fields: [ "name", "first_release_date", "cover" ],
+        where: [ "rating != null", "rating_count > 100" ],
+        sort: [ "rating desc" ],
+        offset: offset
+      )
+    );
 
-  @override
-  String toString() {
-    String queryString = "fields ";
+    List<String> imageIdList = jsonGames.map<String>((g) => "id = ${g["cover"]}").toList();
     
-    //adding field query to queryString
-    if(_fields == null) { queryString += '*'; }
-    else { queryString += _fields!.join(","); }
-    queryString += ";";
-    
-    //adding where options to queryString
-    if(_where != null){
-      queryString += " where ";
-      queryString += _where!.join(" & ");
-      queryString += ";";
+    //get image_id which match id of these games
+    var jsonImages = await GameApi().getResponse("covers",
+      BodyQuery(
+        fields: [ "image_id" ],
+        where: imageIdList,
+        whereSeparator: "|"
+      )
+    );
+
+    //set jsonGame record cover to an image_id
+    for(var entry in jsonGames){
+      entry["cover"] = jsonImages.firstWhere((el) => el["id"] == entry["cover"])["image_id"];
     }
 
-    //adding sort options to queryString
-    if(_sort != null){
-      for(var sort in _sort!){
-        queryString += " sort $sort;";
-      }
-    }
-
-    return queryString;
+    return jsonGames.map((e) => GameMainPage.jsonParse(e)).toList();
   }
 }
