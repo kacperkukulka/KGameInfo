@@ -4,14 +4,16 @@ class BodyQuery {
   List<String>? _sort;
   String? _whereSeparator;
   int? _offset;
+  String? _search;
 
   BodyQuery({List<String>? fields, List<String>? where, 
-    List<String>? sort, String? whereSeparator, int? offset}){
+    List<String>? sort, String? whereSeparator, int? offset, String? search}){
     _fields = fields;
     _where = where;
     _sort = sort;
     _whereSeparator = whereSeparator;
     _offset = offset;
+    _search = search;
   }
 
   @override
@@ -22,6 +24,9 @@ class BodyQuery {
     if(_fields == null) { queryString += '*'; }
     else { queryString += _fields!.join(","); }
     queryString += ";";
+
+    //adding search to queryString
+    if(_search != null) queryString += " search \"$_search\";";
     
     //adding where options to queryString
     if(_where != null){

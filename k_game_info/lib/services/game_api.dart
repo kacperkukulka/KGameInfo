@@ -54,7 +54,7 @@ class GameApi {
     //get first 10 games with biggest rating and rated by more than 100 users
     var jsonGames = await GameApi().getResponse("games",
       BodyQuery(
-        fields: [ "name", "first_release_date", "cover" ],
+        fields: [ "name", "first_release_date", "cover", "rating"],
         where: [ "rating != null", "rating_count > 100" ],
         sort: [ "rating desc" ],
         offset: offset
@@ -75,6 +75,46 @@ class GameApi {
     //set jsonGame record cover to an image_id
     for(var entry in jsonGames){
       entry["cover"] = jsonImages.firstWhere((el) => el["id"] == entry["cover"])["image_id"];
+    }
+
+    return jsonGames.map((e) => GameMainPage.jsonParse(e)).toList();
+  }
+
+  Future<List<GameMainPage>> searchGames({int offset = 0, required String searchFor}) async {
+    var searchRecords = await GameApi().getResponse("search",
+      BodyQuery(
+        fields: [ "game" ],
+        search: searchFor,
+      )
+    );
+    
+    List<String> gamesIdList = searchRecords.map<String>((g) => "id = ${g["game"]}").toList();
+    
+    var jsonGames = await GameApi().getResponse("games",
+      BodyQuery(
+        fields: [ "name", "first_release_date", "cover", "rating"],
+        where: gamesIdList,
+        whereSeparator: '|',
+        offset: offset
+      )
+    );
+    
+    List<String> imageIdList = jsonGames.map<String>((g) => "id = ${g["cover"]}").toList();
+    
+    //get image_id which match id of these games
+    var jsonImages = await GameApi().getResponse("covers",
+      BodyQuery(
+        fields: [ "image_id" ],
+        where: imageIdList,
+        whereSeparator: "|"
+      )
+    );
+   
+    //set jsonGame record cover to an image_id
+    for(var entry in jsonGames){
+      entry["cover"] = jsonImages
+        .firstWhere((el) => el["id"] == entry["cover"], 
+          orElse: () => Map.fromEntries([const MapEntry("image_id", "null")]))["image_id"];
     }
 
     return jsonGames.map((e) => GameMainPage.jsonParse(e)).toList();
